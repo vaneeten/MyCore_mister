@@ -1,90 +1,84 @@
-
 module mycore
 (
 	input         clk,
 	input         reset,
 	
-	input         pal,
-	input         scandouble,
-
-	output reg    ce_pix,
 	output        hvcnt_atzero,
 
-	output reg    HBlank,
-	output reg    HSync,
-	output reg    VBlank,
-	output reg    VSync,
+	input [31:0]  fb_base,
+	input [11:0]  fb_width,
+	input [11:0]  fb_height,
+	input [13:0]  fb_stride,
+	input         fb_vbl,
+	input         fb_ll,
 
-	output  [7:0] video
+	input		  DDRAM_BUSY,		// We need to wait
+	output [7:0]  DDRAM_BURSTCNT,	// always 1
+	output [28:0] DDRAM_ADDR,		// we send the ddr address to sys
+	input  [63:0] DDRAM_DOUT,		// data read from ddr memory
+	input         DDRAM_DOUT_READY,	// sys tells us when ddr data is ready
+	output        DDRAM_RD,			// we want to read from ddr memory
+	output reg [63:0] DDRAM_DIN,		// data to store in ddr memory
+	output reg [7:0] DDRAM_BE,			// byte enable bits (8x8 = 64 bit)
+	output reg       DDRAM_WE			// we want to write to ddr memory
+
 );
 
-reg   [9:0] hc = 0;
-reg   [9:0] vc = 0;
-reg   [9:0] vvc = 0;
-reg  [63:0] rnd_reg;
 
-wire  [5:0] rnd_c = {rnd_reg[0],rnd_reg[1],rnd_reg[2],rnd_reg[2],rnd_reg[2],rnd_reg[2]};
-wire [63:0] rnd;
+reg [31:0] fb_offs = 32'd0;
 
-lfsr random(rnd);
+wire [31:0] ram_address;
 
-// In case the H/V counters need to be cleared after a reset, feed a signal to release
-// the reset at the right time.
-assign hvcnt_atzero = ce_pix && !hc && !vc;
+assign ram_address = fb_base + fb_offs;
 
-always @(posedge clk) begin
-	if(scandouble) ce_pix <= 1;
-		else ce_pix <= ~ce_pix;
 
-	if(ce_pix) begin
-		if(hc == 637) begin
-			hc <= 0;
-			if(vc >= (pal ? (scandouble ? 623 : 311) : (scandouble ? 523 : 261))) begin
-				vc <= 0;
-				vvc <= vvc + 9'd6;
-			end else begin
-				vc <= vc + 1'd1;
-			end
-		end else begin
-			hc <= hc + 1'd1;
-		end
+// assign DDRAM_ADDR = ram_address[31:3];
 
-		rnd_reg <= rnd;
-	end
+assign DDRAM_ADDR = {3'b001, ram_address[28:3]};
 
-	if(reset) vvc <= 0;
-end
+assign DDRAM_BURSTCNT = 8'd1;
+
+assign DDRAM_RD = 1'b0;
+
+assign hvcnt_atzero = fb_vbl;
+
+wire [25:0] bytes_per_screen;
+
+assign bytes_per_screen = fb_stride * fb_height;
+
+reg		init_video = 1'b0;
 
 always @(posedge clk) begin
-	if (hc == 529) HBlank <= 1;
-		else if (hc == 0) HBlank <= 0;
-
-	if (hc == 544) begin
-		HSync <= 1;
-
-		if(pal) begin
-			if(vc == (scandouble ? 609 : 304)) VSync <= 1;
-				else if (vc == (scandouble ? 617 : 308)) VSync <= 0;
-
-			if(vc == (scandouble ? 601 : 300)) VBlank <= 1;
-				else if (vc == 0) VBlank <= 0;
-		end
-		else begin
-			if(vc == (scandouble ? 490 : 245)) VSync <= 1;
-				else if (vc == (scandouble ? 496 : 248)) VSync <= 0;
-
-			if(vc == (scandouble ? 480 : 240)) VBlank <= 1;
-				else if (vc == 0) VBlank <= 0;
-		end
-	end
-	
-	if (hc == 590) HSync <= 0;
+    if (reset) begin
+        fb_offs   <= 32'd0;
+        init_video <= 1'b1;
+        DDRAM_WE  <= 1'b0;
+    end
+    else if (init_video) begin
+        if (!DDRAM_WE) begin
+            // Present the first write request.
+            // Do not advance the address yet.
+            DDRAM_DIN <= 64'hFFFF4080_FFFF4080;	// ABGR
+            DDRAM_BE  <= 8'b1111_1111;
+            DDRAM_WE  <= 1'b1;
+        end
+        else if (!DDRAM_BUSY) begin
+            // The current write has been accepted.
+            if (fb_offs + 32'd8 < bytes_per_screen) begin
+                fb_offs <= fb_offs + 32'd8;
+                // Keep DDRAM_WE asserted for the next write.
+            end
+            else begin
+                // The final write has been accepted.
+                init_video <= 1'b0;
+                DDRAM_WE   <= 1'b0;
+            end
+        end
+        // If busy, hold the request, address and data unchanged.
+    end
+    else begin
+        DDRAM_WE <= 1'b0;
+    end
 end
-
-reg  [7:0] cos_out;
-wire [5:0] cos_g = cos_out[7:3]+6'd32;
-cos cos(vvc + {vc>>scandouble, 2'b00}, cos_out);
-
-assign video = (cos_g >= rnd_c) ? {cos_g - rnd_c, 2'b00} : 8'd0;
 
 endmodule
