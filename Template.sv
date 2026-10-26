@@ -15,7 +15,7 @@
 //  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 //
 //============================================================================
-
+`timescale 1ns/1ns
 module emu
 (
 //	`include "sys/emu_ports.vh"
@@ -186,81 +186,6 @@ parameter DisplayWidth = 12'd1280;
 parameter DisplayHeight_PAL = 12'd720;
 parameter DisplayHeight_NTSC = 12'd720;
 
-
-// AO486:
-// assign DDRAM_ADDR[28:25] = 4'h3;
-// parameter MEM_BASE    = 7'b0010010; // buffer at 0x24000000, 3x8MB
-// assign DDRAM_ADDR     = {MEM_BASE, i_fb, ram_addr[22:3]};
-// assign FB_BASE        = {MEM_BASE, o_fb, 23'd0};
-// reg [1:0] i_fb,o_fb;
-// reg [22:0] ram_addr, next_addr;
-
-// PSX:
-// assign DDRAM_ADDR     = {4'b0011, ram_address[27:3]}; // RAM at 0x30_00_00_00 = 768 x 1024 x 1024 = 768MB
-// -> DDRAM_ADDR = 29 bit:  4'h3 + 25 bits  = 5'h30 + 24 bits
-// assign FB_BASE    = status[11] ? 32'h30_0_00_00_0 : {8'h30, frameindex, DisplayOffsetY, DisplayOffsetX, 1'b0};
-// -- vram is at 0x30_00_00_00
-//   DDRAM_ADDR(28 downto 25) <= "0011";
-//   DDRAM_ADDR(24 downto  0) <= ddr3_ADDR(27 downto 3);
-//   ddr3_ADDR     <= ss_ram_ADDR & "00"  when (ddr3_savestate = '1') else arbiter_ADDR     when (arbiter_active = '1') else  vram_ADDR;      
-
-/*
-	DRAM_DDR is linked to ram_address in sys_top.v, which is linked to ram1_address of module sysmem_lite in sysmem.v. 
-
- */
-
-
-/*  Bootcamp: 
-    5.2 Address Mapping
-
-    	// ddram.sv:L52
-		assign DDRAM_ADDR = {3'b001, ram_address[28:3]}; // RAM at 0x20_00_00_00 = 512 x 1024 x 1024 = 512 MB
-		                     3'd1 + 26 bits = 4'h2 + 25 bits = 5'h20 + 24 bits
-
-	The address prefix 3'b001 shifts the core's DDR3 window to start at physical address 0x20000000
-	(512 MB into the 1 GB DDR3). This ensures the core's DDR3 workspace doesn't collide with the Linux
-	kernel's memory (typically below 0x20000000) or the video framebuffer (managed by ascal).
-
-	The mapping works as follows:
-	* Core provides addr[28:0] as a byte address (up to 512 MB address space)
-	* ddram.sv strips the bottom 3 bits -> 64bit-word-aligned addr[28:3]
-	* Prepends 3'b001 -> 32-bit physical address in the 0x20000000–0x3FFFFFFF range
-
-	Warning
-	-------
-	The addr[28:26] guard in the write path (addr[28:26] must be non-zero) prevents accidental writes
-	to the Linux partition below 0x20000000. A core that passes addr = 0 will silently drop writes.
-
-	sys_top.v manages three DDR3 access paths through sysmem_lite and ddr_svc:
-
-		// sys_top.v L596-678
-		sysmem_lite sysmem
-		(
-			.reset_core_req(reset_req),
-			.reset_out(reset),
-			.clock(clk_100m),
-			.reset_hps_cold_req(btn_r),
-			// Port 1: 64-bit DDR3 (core ddram)
-			.ram1_clk(ram_clk), .ram1_address(ram_address), ...
-			// Port 2: 64-bit DDR3 (ALSA + PAL)
-			.ram2_clk(clk_audio), .ram2_address(ram2_address), ...
-			// Port 3: 128-bit DDR3 (video framebuffer)
-			.vbuf_clk(clk_100m), .vbuf_address(vbuf_address), ...
-			// Optional signals omitted for brevity
-		);
-
-	sysmem_lite wraps the Cyclone V's hard memory controller and provides three independent AXI ports:
-
-	Port		Width		Clock				Purpose
-	ram1_*		64-bit		ram_clk (from core)	Core DDR3 access (ROM cache, CD-ROM ISO, HDD images)
-	ram2_*		64-bit		clk_audio			ALSA audio DMA + PAL color lookup DMA
-	vbuf_*		128-bit		clk_100m			Video framebuffer for ascal scaler
-	
-	Additionally, sysmem_lite generates the system reset (reset_out) and the 100 MHz clock (clock) from the DDR3 PLL.
-
-*/
-
-
 // From PSX
 assign FB_BASE    = 32'h30_0_00_00_0;
 assign FB_EN      = 1'b1;
@@ -413,7 +338,9 @@ mycore mycore
    .DDRAM_RD        (DDRAM_RD        ),
    .DDRAM_DIN       (DDRAM_DIN       ),
    .DDRAM_BE        (DDRAM_BE        ),
-   .DDRAM_WE        (DDRAM_WE        )
+   .DDRAM_WE        (DDRAM_WE        ),
+
+   .KEYBOARD        (ps2_key)
 
 );
 

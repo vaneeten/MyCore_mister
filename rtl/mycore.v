@@ -1,3 +1,33 @@
+`timescale 1ns/1ns
+
+task setpixel;
+    input [11:0] xpos;
+    input [11:0] ypos;
+    input [11:0] fb_width;
+    input [11:0] fb_height;
+    input [13:0] fb_stride;
+    input [7:0]  r, g, b;
+
+    output reg [63:0] pixel64;
+    output reg [31:0] fb_offs;
+    output reg [7:0]  fb_be;
+
+    reg [11:0] x, y;
+    reg [31:0] raw_offs;
+
+    begin
+        x = (xpos < fb_width) ? xpos : fb_width - 1'b1;
+        y = (ypos < fb_height) ? ypos : fb_height - 1'b1;
+
+        raw_offs = ({20'd0, y} * {18'd0, fb_stride}) + ({20'd0, x} << 2);
+
+        pixel64 <= {8'hff, b, g, r, 8'hff, b, g, r};
+        fb_be   <= raw_offs[2] ? 8'b1111_0000 : 8'b0000_1111;
+        fb_offs <= {raw_offs[31:3], 3'b000};
+    end
+endtask
+
+
 module mycore
 (
 	input         clk,
@@ -20,7 +50,9 @@ module mycore
 	output        DDRAM_RD,			// we want to read from ddr memory
 	output reg [63:0] DDRAM_DIN,		// data to store in ddr memory
 	output reg [7:0] DDRAM_BE,			// byte enable bits (8x8 = 64 bit)
-	output reg       DDRAM_WE			// we want to write to ddr memory
+	output reg       DDRAM_WE,			// we want to write to ddr memory
+
+	input reg [10:0] KEYBOARD
 
 );
 
@@ -48,6 +80,12 @@ assign bytes_per_screen = fb_stride * fb_height;
 
 reg		init_video = 1'b0;
 
+reg    key_pressed = 1'b0;
+
+// assign key_pressed = KEYBOARD[10];
+
+reg [11:0] xpos = 10, ypos = 10;
+
 always @(posedge clk) begin
     if (reset) begin
         fb_offs   <= 32'd0;
@@ -56,29 +94,52 @@ always @(posedge clk) begin
     end
     else if (init_video) begin
         if (!DDRAM_WE) begin
-            // Present the first write request.
-            // Do not advance the address yet.
-            DDRAM_DIN <= 64'hFFFF4080_FFFF4080;	// ABGR
+            DDRAM_DIN <= 64'hFF802040_FF802040; // 64'hFFFF4080_FFFF4080;	// ABGR
             DDRAM_BE  <= 8'b1111_1111;
             DDRAM_WE  <= 1'b1;
         end
         else if (!DDRAM_BUSY) begin
-            // The current write has been accepted.
             if (fb_offs + 32'd8 < bytes_per_screen) begin
                 fb_offs <= fb_offs + 32'd8;
-                // Keep DDRAM_WE asserted for the next write.
             end
             else begin
-                // The final write has been accepted.
                 init_video <= 1'b0;
                 DDRAM_WE   <= 1'b0;
+				fb_offs <= 32'd0;
             end
         end
-        // If busy, hold the request, address and data unchanged.
     end
-    else begin
-        DDRAM_WE <= 1'b0;
-    end
+	else begin
+		if (DDRAM_WE) begin
+			if (!DDRAM_BUSY) begin
+				DDRAM_WE <= 1'b0;
+				xpos <= (xpos <= fb_width-10)? xpos + 9 : 10;
+				ypos <= (ypos <= fb_height-8)? ypos + 8 : 10;
+			end
+		end
+		else if (key_pressed) begin
+			setpixel(
+				xpos, ypos,
+				fb_width, fb_height, fb_stride,
+				8'hff, 8'hff, 8'hff,
+				DDRAM_DIN, fb_offs, DDRAM_BE
+			);
+
+			DDRAM_WE <= 1'b1;
+			key_pressed <= 1'b0;
+		end
+		else
+		begin
+			if (KEYBOARD[10]) begin
+				key_pressed <= 1'b1;
+			end
+		end
+	end
 end
+
+
+
+
+
 
 endmodule
