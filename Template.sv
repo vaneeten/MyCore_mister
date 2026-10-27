@@ -340,7 +340,7 @@ mycore mycore
    .DDRAM_BE        (DDRAM_BE        ),
    .DDRAM_WE        (DDRAM_WE        ),
 
-   .KEYBOARD        (ps2_key)
+   .ps2_key         (ps2_key)
 
 );
 

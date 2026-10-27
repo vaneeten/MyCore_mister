@@ -1,5 +1,10 @@
 `timescale 1ns/1ns
 
+parameter ARROW_UP    = 9'h175;
+parameter ARROW_DOWN  = 9'h172;
+parameter ARROW_LEFT  = 9'h16b;
+parameter ARROW_RIGHT = 9'h174;
+
 task setpixel;
     input [11:0] xpos;
     input [11:0] ypos;
@@ -28,6 +33,7 @@ task setpixel;
 endtask
 
 
+
 module mycore
 (
 	input         clk,
@@ -52,7 +58,7 @@ module mycore
 	output reg [7:0] DDRAM_BE,			// byte enable bits (8x8 = 64 bit)
 	output reg       DDRAM_WE,			// we want to write to ddr memory
 
-	input reg [10:0] KEYBOARD
+	input reg [10:0] ps2_key
 
 );
 
@@ -81,6 +87,17 @@ assign bytes_per_screen = fb_stride * fb_height;
 reg		init_video = 1'b0;
 
 reg    key_pressed = 1'b0;
+
+reg			key_released = 1'b1;
+reg [8:0]	key_scancode = 9'd0;
+
+wire [8:0] 	scancode;
+wire		key_action;
+wire		key_toggle;
+
+assign scancode = ps2_key[8:0];
+assign key_action = ps2_key[9];
+assign key_toggle = ps2_key[10];
 
 // assign key_pressed = KEYBOARD[10];
 
@@ -113,8 +130,13 @@ always @(posedge clk) begin
 		if (DDRAM_WE) begin
 			if (!DDRAM_BUSY) begin
 				DDRAM_WE <= 1'b0;
-				xpos <= (xpos <= fb_width-10)? xpos + 9 : 10;
-				ypos <= (ypos <= fb_height-8)? ypos + 8 : 10;
+				case(key_scancode) 
+					ARROW_RIGHT : xpos <= (xpos <= fb_width-1)? xpos + 1 : xpos;
+					ARROW_LEFT  : xpos <= (xpos > 0)? xpos - 1 : xpos;
+					ARROW_DOWN  : ypos <= (ypos <= fb_height-1)? ypos + 1 : ypos;
+					ARROW_UP    : ypos <= (ypos > 0)? ypos - 1 : ypos;	
+				endcase
+				key_scancode <= 9'd0;
 			end
 		end
 		else if (key_pressed) begin
@@ -130,8 +152,17 @@ always @(posedge clk) begin
 		end
 		else
 		begin
-			if (KEYBOARD[10]) begin
-				key_pressed <= 1'b1;
+			if (key_action) begin
+				if (key_released) begin
+					key_pressed <= 1'b1;
+					key_released <= 1'b0;
+					key_scancode <= scancode;
+				end
+			end
+			else
+			begin
+				key_released <= 1'b1;
+				key_pressed <= 1'b0;
 			end
 		end
 	end
