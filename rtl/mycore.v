@@ -1,5 +1,7 @@
 `timescale 1ns/1ns
 
+import textfont::*;
+
 parameter ARROW_UP    = 9'h175;
 parameter ARROW_DOWN  = 9'h172;
 parameter ARROW_LEFT  = 9'h16b;
@@ -86,6 +88,8 @@ assign bytes_per_screen = fb_stride * fb_height;
 
 reg		init_video = 1'b0;
 
+reg		init_text = 1'b0;
+
 reg    key_pressed = 1'b0;
 
 reg			key_released = 1'b1;
@@ -102,6 +106,8 @@ assign key_toggle = ps2_key[10];
 // assign key_pressed = KEYBOARD[10];
 
 reg [11:0] xpos = 10, ypos = 10;
+
+reg [5:0] i = 0,j = 0;
 
 always @(posedge clk) begin
     if (reset) begin
@@ -123,9 +129,35 @@ always @(posedge clk) begin
                 init_video <= 1'b0;
                 DDRAM_WE   <= 1'b0;
 				fb_offs <= 32'd0;
+				init_text <=1'b1;
             end
         end
     end
+	else if (init_text) begin
+		if (DDRAM_WE) begin
+			if (!DDRAM_BUSY) begin
+				DDRAM_WE <= 1'b0;
+				i <= i + 1;
+				if (i == 8) begin
+					j <= j + 1;
+					i <= 0;
+				end
+				if (j == 16) begin
+					init_text <= 1'b0;
+				end
+			end
+		end		
+		else begin
+			xpos <= fb_width >> 1;
+			ypos <= fb_height >> 1;
+			drawchar(xpos, ypos, 8'd65,
+				fb_width, fb_height, fb_stride,
+				8'hff, 8'hff, 8'hff,
+				i[3:0], j[4:0],
+				DDRAM_DIN, fb_offs, DDRAM_BE);
+			DDRAM_WE <= 1'b1;
+		end
+	end
 	else begin
 		if (DDRAM_WE) begin
 			if (!DDRAM_BUSY) begin
