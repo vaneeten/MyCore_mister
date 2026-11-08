@@ -353,29 +353,10 @@ mycore mycore
 	.clk(clk_sys),
 	.reset(reset_core),
 
-
-	// .fb_base(FB_BASE),
-	// .fb_width(FB_WIDTH),
-	// .fb_height(FB_HEIGHT),
-	// .fb_stride(FB_STRIDE),
-	// .fb_vbl(FB_VBL),
-	// .fb_ll(FB_LL),
-
-   // vram/ddr3 (from PSX)
-//    .DDRAM_BUSY      (DDRAM_BUSY      ),
-//    .DDRAM_BURSTCNT  (DDRAM_BURSTCNT  ),
-//    .DDRAM_ADDR      (DDRAM_ADDR      ),
-//    .DDRAM_DOUT      (DDRAM_DOUT      ),
-//    .DDRAM_DOUT_READY(DDRAM_DOUT_READY),
-//    .DDRAM_RD        (DDRAM_RD        ),
-//    .DDRAM_DIN       (DDRAM_DIN       ),
-//    .DDRAM_BE        (DDRAM_BE        ),
-//    .DDRAM_WE        (DDRAM_WE        ),
-
-//    .ps2_key         (ps2_key),
 	.ascii_code		(ascii_code),
 	.ascii_code_new (ascii_ready),
 	.ps2_toggle  	(ps2_toggle),
+
 	.term_ready    	(term_ready),
 	.term_out_char 	(char2print),
 	.term_write_en 	(do_print)
@@ -384,7 +365,6 @@ mycore mycore
 
 assign CLK_VIDEO = clk_sys;
 assign CE_PIXEL = ce_pix;
-
 
 // assign CLK_VIDEO = 1'b0; //  clk_sys;
 // assign CE_PIXEL = 1'b0;  // ce_pix;
