@@ -156,18 +156,18 @@ task drawchar;
 	begin
 		character = font_8x16_src128[ascii];
 		row = character[j*8 +: 8];
-		pixel = row[i];
+		pixel = row[8 - i];
 		x = xpos + {9'd0,i};
 		y = ypos - {8'd0,j};
 		if (x < fb_width && y < fb_height)
 		begin
 			raw_offs = ({20'd0, y} * {18'd0, fb_stride}) + ({20'd0, x} << 2);
-			pixel64 <= {8'hff, b, g, r, 8'hff, b, g, r};
-			fb_be   <= (!pixel)? 8'h00 : raw_offs[2] ? 8'b1111_0000 : 8'b0000_1111;
-   			fb_offs <= {raw_offs[31:3], 3'b000};
+			pixel64 = {8'hff, b, g, r, 8'hff, b, g, r};
+			fb_be   = (!pixel)? 8'h00 : raw_offs[2] ? 8'b1111_0000 : 8'b0000_1111;
+   			fb_offs = {raw_offs[31:3], 3'b000};
 		end
         else begin
-            fb_be <= 8'h00;
+            fb_be = 8'h00;
         end
 	end
 endtask

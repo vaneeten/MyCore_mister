@@ -304,43 +304,81 @@ end
 
 assign DDRAM_CLK = clk_sys;
 
-mycore mycore
-(
-	.clk(clk_sys),
+
+logic [7:0] char2print;
+logic		do_print;
+logic		term_ready;
+
+hdterm terminal(
+	.clk (clk_sys),
 	.reset(reset_core),
-
-	// .pal(status[2]),
-	// // .scandouble(forced_scandoubler),
-
-	// .ce_pix(ce_pix),
-	// .hvcnt_atzero(hvcnt_atzero),
 
 	.fb_base(FB_BASE),
 	.fb_width(FB_WIDTH),
 	.fb_height(FB_HEIGHT),
 	.fb_stride(FB_STRIDE),
-	.fb_vbl(FB_VBL),
-	.fb_ll(FB_LL),
+	
+	.character(char2print),
+	.write_en(do_print),
+	.term_ready(term_ready),
 
-	// .HBlank(HBlank),
-	// .HSync(HSync),
-	// .VBlank(VBlank),
-	// .VSync(VSync),
+  	.DDRAM_BUSY      (DDRAM_BUSY      ),
+    .DDRAM_BURSTCNT  (DDRAM_BURSTCNT  ),
+    .DDRAM_ADDR      (DDRAM_ADDR      ),
+    .DDRAM_DIN       (DDRAM_DIN       ),
+    .DDRAM_BE        (DDRAM_BE        ),
+    .DDRAM_WE        (DDRAM_WE        )
+);
 
-	// .video(video),
+reg [7:0]	ascii_code;
+logic 		ascii_ready;
+logic 		ps2_toggle;
+
+simple_keys simple_keys (
+	.reset       (reset),
+	.ps2_key     (ps2_key),
+	// .ps2_scancode(ps2_scancode),
+	// .ps2_ready   (ps2_ready),
+	.ascii_code  (ascii_code),
+	.ascii_ready (ascii_ready),
+	.ps2_toggle  (ps2_toggle),
+	// .arrow_left  (arrow_left),
+	// .arrow_right (arrow_right),
+	// .arrow_up    (arrow_up),
+	// .arrow_down  (arrow_down)
+);
+
+mycore mycore
+(
+	.clk(clk_sys),
+	.reset(reset_core),
+
+
+	// .fb_base(FB_BASE),
+	// .fb_width(FB_WIDTH),
+	// .fb_height(FB_HEIGHT),
+	// .fb_stride(FB_STRIDE),
+	// .fb_vbl(FB_VBL),
+	// .fb_ll(FB_LL),
 
    // vram/ddr3 (from PSX)
-   .DDRAM_BUSY      (DDRAM_BUSY      ),
-   .DDRAM_BURSTCNT  (DDRAM_BURSTCNT  ),
-   .DDRAM_ADDR      (DDRAM_ADDR      ),
-   .DDRAM_DOUT      (DDRAM_DOUT      ),
-   .DDRAM_DOUT_READY(DDRAM_DOUT_READY),
-   .DDRAM_RD        (DDRAM_RD        ),
-   .DDRAM_DIN       (DDRAM_DIN       ),
-   .DDRAM_BE        (DDRAM_BE        ),
-   .DDRAM_WE        (DDRAM_WE        ),
+//    .DDRAM_BUSY      (DDRAM_BUSY      ),
+//    .DDRAM_BURSTCNT  (DDRAM_BURSTCNT  ),
+//    .DDRAM_ADDR      (DDRAM_ADDR      ),
+//    .DDRAM_DOUT      (DDRAM_DOUT      ),
+//    .DDRAM_DOUT_READY(DDRAM_DOUT_READY),
+//    .DDRAM_RD        (DDRAM_RD        ),
+//    .DDRAM_DIN       (DDRAM_DIN       ),
+//    .DDRAM_BE        (DDRAM_BE        ),
+//    .DDRAM_WE        (DDRAM_WE        ),
 
-   .ps2_key         (ps2_key)
+//    .ps2_key         (ps2_key),
+	.ascii_code		(ascii_code),
+	.ascii_code_new (ascii_ready),
+	.ps2_toggle  	(ps2_toggle),
+	.term_ready    	(term_ready),
+	.term_out_char 	(char2print),
+	.term_write_en 	(do_print)
 
 );
 
