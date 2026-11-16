@@ -15,6 +15,10 @@
 //  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 //
 //============================================================================
+
+
+// `define USE_SDRAM_PSX
+
 `timescale 1ns/1ns
 module emu
 (
@@ -162,7 +166,7 @@ assign ADC_BUS  = 'Z;
 assign USER_OUT = '1;
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
-assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
+// assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
 // assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = '0;  
 
 assign VGA_SL = 0;
@@ -275,16 +279,118 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
 ///////////////////////   CLOCKS   ///////////////////////////////
 
 wire clk_sys;
+wire clk_sdram;
 pll pll
 (
 	.refclk(CLK_50M),
 	.rst(0),
-	.outclk_0(clk_sys)
+	.outclk_0(clk_sys),
+	.outclk_1(clk_sdram)
 );
 
 wire reset = RESET | status[0] | buttons[1];
 
 wire [1:0] col = status[4:3];
+
+///////////////////////   MAIN RAM   ///////////////////////////////
+
+reg  [26:0] sdram_addr;		// 27 bit address for 8bit mode.
+wire [31:0] sdram_dout;		// data output to cpu                                                              
+reg  [31:0] sdram_din;		// data input from cpu                                                             
+reg         sdram_we;		// cpu requests write enable
+reg         sdram_rd;		// cpu requests read enable
+wire        sdram_ready;	// dout is valid. Ready to accept new read/write.   
+                              	
+logic		sdram_req;		// cpu requests sdram read or write                                                             
+logic		sdram_rnw;
+
+
+always_comb begin
+	sdram_req = sdram_we | sdram_rd;
+	sdram_rnw = sdram_rd;
+end
+
+`ifndef USE_SDRAM_PSX
+
+mainram mainram (
+	.reset       (reset),
+	.clk_sdram   (clk_sdram),
+	.SDRAM_DQ    (SDRAM_DQ),
+	.SDRAM_A     (SDRAM_A),
+	.SDRAM_DQML  (SDRAM_DQML),
+	.SDRAM_DQMH  (SDRAM_DQMH),
+	.SDRAM_BA    (SDRAM_BA),
+	.SDRAM_nCS   (SDRAM_nCS),
+	.SDRAM_nWE   (SDRAM_nWE),
+	.SDRAM_nRAS  (SDRAM_nRAS),
+	.SDRAM_nCAS  (SDRAM_nCAS),
+	.SDRAM_CLK   (SDRAM_CLK),
+	.SDRAM_CKE   (SDRAM_CKE),
+	.sdram_addr  (sdram_addr),
+	.sdram_dout32(sdram_dout),
+	.sdram_din32 (sdram_din),
+	.sdram_we    (sdram_we),
+	.sdram_rd    (sdram_rd),
+	.sdram_ready (sdram_ready)
+);
+
+`else
+
+sdram_psx mainram (
+	.init            (reset),
+	.clk             (clk_sdram),
+	.clk_base        (clk_sys),
+	.SDRAM_EN        (1'b1),
+	.SDRAM_DQ        (SDRAM_DQ),
+	.SDRAM_A         (SDRAM_A),
+	.SDRAM_DQML      (SDRAM_DQML),
+	.SDRAM_DQMH      (SDRAM_DQMH),
+	.SDRAM_BA        (SDRAM_BA),
+	.SDRAM_nCS       (SDRAM_nCS),
+	.SDRAM_nWE       (SDRAM_nWE),
+	.SDRAM_nRAS      (SDRAM_nRAS),
+	.SDRAM_nCAS      (SDRAM_nCAS),
+	.SDRAM_CKE       (SDRAM_CKE),
+	.SDRAM_CLK       (SDRAM_CLK),
+	.refreshForce    (1'b0),
+	// .ram_idle        (ram_idle),
+	// .ch1_addr        (ch1_addr),
+	// .ch1_dout        (ch1_dout),
+	// .ch1_dout32      (ch1_dout32),
+	// .ch1_din         (ch1_din),
+	// .ch1_req         (ch1_req),
+	// .ch1_rnw         (ch1_rnw),
+	// .ch1_dma         (ch1_dma),
+	// .ch1_cntDMA      (ch1_cntDMA),
+	// .ch1_cache       (ch1_cache),
+	// .ch1_ready       (ch1_ready),
+	// .cache_wr        (cache_wr),
+	// .cache_data      (cache_data),
+	// .cache_addr      (cache_addr),
+	// .dma_wr          (dma_wr),
+	// .dma_reqprocessed(dma_reqprocessed),
+	// .dma_data        (dma_data),
+	.ch2_addr        (sdram_addr),
+	.ch2_dout        (sdram_dout),
+	.ch2_din         (sdram_din),
+	.ch2_req         (sdram_req),
+	.ch2_rnw         (sdram_rnw),
+	.ch2_be          (4'b1111),
+	.ch2_ready       (sdram_ready),
+	// .ch3_addr        (ch3_addr),
+	// .ch3_dout        (ch3_dout),
+	// .ch3_din         (ch3_din),
+	// .ch3_req         (ch3_req),
+	// .ch3_rnw         (ch3_rnw),
+	// .ch3_be          (ch3_be),
+	// .ch3_ready       (ch3_ready),
+	// .dmafifo_adr     (dmafifo_adr),
+	// .dmafifo_data    (dmafifo_data),
+	// .dmafifo_empty   (dmafifo_empty),
+	// .dmafifo_read    (dmafifo_read)
+);
+
+`endif
 
 wire HBlank;
 wire HSync;
@@ -341,7 +447,7 @@ simple_keys simple_keys (
 	// .ps2_ready   (ps2_ready),
 	.ascii_code  (ascii_code),
 	.ascii_ready (ascii_ready),
-	.ps2_toggle  (ps2_toggle),
+	.ps2_toggle  (ps2_toggle)
 	// .arrow_left  (arrow_left),
 	// .arrow_right (arrow_right),
 	// .arrow_up    (arrow_up),
@@ -350,8 +456,17 @@ simple_keys simple_keys (
 
 mycore mycore
 (
-	.clk(clk_sys),
-	.reset(reset_core),
+	.clk			(clk_sys),
+	.reset			(reset_core),
+
+	.sdram_addr		(sdram_addr), 
+	.sdram_dout		(sdram_dout),	
+	.sdram_din		(sdram_din),	
+	.sdram_we		(sdram_we),   
+	.sdram_rd		(sdram_rd),   
+	.sdram_ready	(sdram_ready),
+
+	.hvcnt_atzero	(hvcnt_atzero),
 
 	.ascii_code		(ascii_code),
 	.ascii_code_new (ascii_ready),
